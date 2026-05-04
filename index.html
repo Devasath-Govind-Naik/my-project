@@ -3,149 +3,223 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Secure Login System</title>
+<title>Secure Auth App</title>
 
 <style>
 body {
-  font-family: Arial, sans-serif;
-  background: linear-gradient(135deg,#1e3c72,#2a5298);
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
   height:100vh;
   display:flex;
   justify-content:center;
   align-items:center;
-  margin:0;
 }
 
 .container {
+  width:360px;
   background:#fff;
-  padding:30px;
+  padding:25px;
   border-radius:12px;
-  width:320px;
-  box-shadow:0 8px 20px rgba(0,0,0,0.2);
+  box-shadow:0 10px 25px rgba(0,0,0,0.3);
 }
 
-h2 {
-  text-align:center;
-  margin-bottom:20px;
-}
+h2 { text-align:center; }
 
 input {
   width:100%;
   padding:10px;
-  margin:10px 0;
-  border:1px solid #ccc;
+  margin:8px 0;
   border-radius:6px;
+  border:1px solid #ccc;
 }
 
 button {
   width:100%;
   padding:10px;
-  background:#2a5298;
-  color:#fff;
+  margin-top:10px;
   border:none;
   border-radius:6px;
+  background:#2c5364;
+  color:#fff;
   cursor:pointer;
 }
 
-button:hover {
-  background:#1e3c72;
-}
+button:hover { background:#203a43; }
 
-.error {
-  color:red;
-  font-size:13px;
-}
-
-.success {
-  color:green;
+.link {
   text-align:center;
+  margin-top:10px;
+  cursor:pointer;
+  color:#2c5364;
 }
 
-.hidden {
-  display:none;
+.error { color:red; font-size:13px; }
+.success { color:green; text-align:center; }
+
+.hidden { display:none; }
+
+.strength {
+  height:5px;
+  border-radius:5px;
+  margin-top:5px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="container" id="loginBox">
-  <h2>Secure Login</h2>
-  
-  <input type="text" id="username" placeholder="Username">
-  <input type="password" id="password" placeholder="Password">
-  
-  <div id="msg" class="error"></div>
-  
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox">
+  <h2>Login</h2>
+  <input type="text" id="loginUser" placeholder="Username">
+  <input type="password" id="loginPass" placeholder="Password">
+  <div id="loginMsg" class="error"></div>
   <button onclick="login()">Login</button>
+  <div class="link" onclick="showRegister()">Create Account</div>
 </div>
 
-<div class="container hidden" id="dashboard">
+<!-- REGISTER -->
+<div id="registerBox" class="hidden">
+  <h2>Register</h2>
+  <input type="text" id="regUser" placeholder="Username">
+  <input type="email" id="regEmail" placeholder="Email">
+  <input type="password" id="regPass" placeholder="Password" onkeyup="checkStrength()">
+  <div id="strengthBar" class="strength"></div>
+  <input type="password" id="regConfirm" placeholder="Confirm Password">
+  <div id="regMsg" class="error"></div>
+  <button onclick="register()">Register</button>
+  <div class="link" onclick="showLogin()">Back to Login</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
   <h2>Dashboard</h2>
-  <p class="success">Login Successful ✔</p>
+  <p class="success">Welcome, <span id="userDisplay"></span> ✔</p>
   <button onclick="logout()">Logout</button>
 </div>
 
+</div>
+
 <script>
-// ===== SECURITY FUNCTIONS =====
-
-// Prevent XSS (basic sanitization)
+// ===== UTILITIES =====
 function sanitize(input) {
-  return input.replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return input.replace(/[<>"']/g, "");
 }
 
-// Password strength check
-function strongPassword(password) {
-  let regex = /^(?=.*[A-Z])(?=.*[0-9]).{6,}$/;
-  return regex.test(password);
+function validateEmail(email) {
+  return /^[^ ]+@[^ ]+\.[a-z]{2,3}$/.test(email);
 }
 
-// Fake database
-const userDB = {
-  username: "admin",
-  password: "Admin123"
-};
+// ===== PASSWORD STRENGTH =====
+function checkStrength() {
+  let pass = document.getElementById("regPass").value;
+  let bar = document.getElementById("strengthBar");
 
-// ===== LOGIN FUNCTION =====
-function login() {
-  let username = sanitize(document.getElementById("username").value.trim());
-  let password = sanitize(document.getElementById("password").value.trim());
-  let msg = document.getElementById("msg");
+  if(pass.length < 4) {
+    bar.style.width = "30%";
+    bar.style.background = "red";
+  } else if(pass.match(/[A-Z]/) && pass.match(/[0-9]/)) {
+    bar.style.width = "100%";
+    bar.style.background = "green";
+  } else {
+    bar.style.width = "60%";
+    bar.style.background = "orange";
+  }
+}
 
-  // Empty check
-  if(username === "" || password === "") {
+// ===== DATABASE (LOCAL STORAGE) =====
+function getUsers() {
+  return JSON.parse(localStorage.getItem("users")) || [];
+}
+
+function saveUsers(users) {
+  localStorage.setItem("users", JSON.stringify(users));
+}
+
+// ===== REGISTER =====
+function register() {
+  let user = sanitize(document.getElementById("regUser").value.trim());
+  let email = sanitize(document.getElementById("regEmail").value.trim());
+  let pass = sanitize(document.getElementById("regPass").value.trim());
+  let confirm = sanitize(document.getElementById("regConfirm").value.trim());
+  let msg = document.getElementById("regMsg");
+
+  if(!user || !email || !pass || !confirm) {
     msg.innerText = "All fields required!";
     return;
   }
 
-  // Password strength check
-  if(!strongPassword(password)) {
-    msg.innerText = "Weak password! Use Capital + Number";
+  if(!validateEmail(email)) {
+    msg.innerText = "Invalid email!";
     return;
   }
 
-  // Authentication
-  if(username === userDB.username && password === userDB.password) {
-    localStorage.setItem("auth", "true");
+  if(pass !== confirm) {
+    msg.innerText = "Passwords do not match!";
+    return;
+  }
+
+  let users = getUsers();
+
+  if(users.find(u => u.user === user)) {
+    msg.innerText = "User already exists!";
+    return;
+  }
+
+  users.push({ user, email, pass });
+  saveUsers(users);
+
+  msg.style.color = "green";
+  msg.innerText = "Registered successfully!";
+}
+
+// ===== LOGIN =====
+function login() {
+  let user = sanitize(document.getElementById("loginUser").value.trim());
+  let pass = sanitize(document.getElementById("loginPass").value.trim());
+  let msg = document.getElementById("loginMsg");
+
+  let users = getUsers();
+
+  let found = users.find(u => u.user === user && u.pass === pass);
+
+  if(found) {
+    localStorage.setItem("authUser", user);
     showDashboard();
   } else {
     msg.innerText = "Invalid credentials!";
   }
 }
 
-// ===== SESSION MANAGEMENT =====
+// ===== SESSION =====
 function showDashboard() {
   document.getElementById("loginBox").classList.add("hidden");
+  document.getElementById("registerBox").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
+  document.getElementById("userDisplay").innerText = localStorage.getItem("authUser");
 }
 
 function logout() {
-  localStorage.removeItem("auth");
+  localStorage.removeItem("authUser");
   location.reload();
 }
 
-// Auto login if session exists
-if(localStorage.getItem("auth") === "true") {
+// ===== NAVIGATION =====
+function showRegister() {
+  document.getElementById("loginBox").classList.add("hidden");
+  document.getElementById("registerBox").classList.remove("hidden");
+}
+
+function showLogin() {
+  document.getElementById("registerBox").classList.add("hidden");
+  document.getElementById("loginBox").classList.remove("hidden");
+}
+
+// ===== AUTO LOGIN =====
+if(localStorage.getItem("authUser")) {
   showDashboard();
 }
 </script>
